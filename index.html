@@ -1,0 +1,401 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>AI音声対話モジュール 試作計画</title>
+  <style>
+:root {
+  --w: 1280px;
+  --h: 720px;
+  --ink: #0b1020;
+  --muted: #5b677a;
+  --panel: #ffffff;
+  --bg1: #f6f9ff;
+  --bg2: #eef2ff;
+  --acc1: #2e5bff;
+  --acc2: #7aa2ff;
+  --ring: rgba(46,91,255,.25);
+}
+* { box-sizing: border-box; }
+html, body {
+  margin: 0; padding: 0;
+  background:
+    radial-gradient(900px 500px at 85% -10%, rgba(46,91,255,.08), transparent 40%),
+    radial-gradient(900px 500px at -10% 80%, rgba(122,162,255,.10), transparent 45%),
+    linear-gradient(180deg, var(--bg1), var(--bg2));
+  color: var(--ink);
+  font-family: "Noto Sans JP", system-ui, -apple-system, "Segoe UI", "Hiragino Kaku Gothic ProN", "Yu Gothic UI", "Meiryo", sans-serif;
+}
+.frame {
+  width: var(--w); height: var(--h);
+  margin: 28px auto 72px;
+  background: var(--panel);
+  border-radius: 20px;
+  box-shadow: 0 24px 70px rgba(11,16,32,.12), 0 8px 28px rgba(11,16,32,.08);
+  overflow: hidden; position: relative;
+}
+.ribbon {
+  position: absolute; inset: 0;
+  background:
+    radial-gradient(1200px 500px at -10% 10%, rgba(46,91,255,.10), transparent 40%),
+    radial-gradient(1000px 500px at 110% 80%, rgba(17,24,39,.05), transparent 45%);
+  pointer-events: none;
+}
+.brandbar {
+  position: absolute; left: 0; top: 0; right: 0; height: 72px;
+  display: flex; align-items: center; gap: 12px; padding: 0 28px;
+  background: linear-gradient(90deg, #f7f9ff, #eef2ff);
+  border-bottom: 1px solid #e6ebf5;
+}
+.brandbar .dot {
+  width: 12px; height: 12px; border-radius: 50%;
+  background: radial-gradient(circle at 30% 30%, #8ab2ff, #2e5bff);
+  box-shadow: 0 0 0 6px var(--ring);
+}
+.brandbar .title { font-weight: 800; letter-spacing: .3px; }
+.slide {
+  display: none; width: 100%; height: 100%;
+  padding: 96px 72px 72px; position: relative;
+}
+.slide.active { display: block; }
+h1 { margin: 0 0 8px; font-size: 46px; letter-spacing: .3px; }
+h2 { margin: 0 0 10px; font-size: 34px; }
+h3 { margin: 0 0 8px; font-size: 22px; color: var(--muted); }
+p { font-size: 22px; line-height: 1.6; margin: 10px 0; }
+ul { margin: 10px 0 0; padding-left: 24px; }
+li { font-size: 22px; line-height: 1.55; margin: 8px 0; }
+.mono { font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace; }
+.small { font-size: 16px; color: var(--muted); }
+.meta { position: absolute; bottom: 20px; right: 24px; font-size: 16px; color: var(--muted); }
+.grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 28px; }
+.card {
+  background: #fbfdff; border: 1px solid #e6ebf5; border-radius: 14px;
+  padding: 18px 20px;
+  box-shadow: 0 8px 28px rgba(46,91,255,.06);
+}
+.kv {
+  height: 320px; border-radius: 16px;
+  background:
+    radial-gradient(1200px 600px at 0% 0%, rgba(46,91,255,.10), transparent 40%),
+    radial-gradient(1200px 600px at 100% 100%, rgba(122,162,255,.12), transparent 45%);
+  display:flex; align-items:center; justify-content:center;
+  border: 1px dashed #dbe3f2;
+}
+.badge {
+  display: inline-flex; align-items: center; gap: 8px;
+  padding: 6px 12px; border-radius: 999px;
+  background: #eef2ff; color: #2e5bff; font-weight: 700; font-size: 14px;
+  border: 1px solid #dbe3f2;
+}
+.table { width:100%; border-collapse: collapse; margin-top: 8px; }
+.table th, .table td { border:1px solid #e6ebf5; padding: 10px 12px; text-align:left; font-size: 20px; }
+.table th { background:#f3f6ff; }
+.right { text-align:right; }
+.nav {
+  position: fixed; left: 50%; transform: translateX(-50%);
+  bottom: 14px; display: flex; gap: 10px; z-index: 100;
+  background: rgba(255,255,255,.86); border: 1px solid #e6ebf5; border-radius: 999px; padding: 6px 10px;
+  backdrop-filter: blur(6px);
+  box-shadow: 0 10px 28px rgba(11,16,32,.12);
+}
+.nav button {
+  font-size: 14px; padding: 6px 12px; border: 1px solid #e6ebf5; border-radius: 999px; background: white; cursor: pointer;
+}
+.curr { font-variant-numeric: tabular-nums; color: #334155; padding: 6px 8px; }
+.icon { width: 22px; height: 22px; }
+.arch {
+  display:grid; grid-template-columns: 1.2fr .6fr 1.2fr; gap: 22px; align-items: center; margin-top: 10px;
+}
+.box {
+  border: 1px solid #dbe3f2; border-radius: 14px; padding: 14px;
+  background: #ffffff; box-shadow: 0 8px 18px rgba(46,91,255,.05);
+}
+.arrow {
+  display:flex; align-items:center; justify-content:center;
+}
+.timeline {
+  display:grid; grid-template-columns: repeat(4,1fr); gap: 16px; margin-top: 6px;
+}
+.milestone {
+  border: 1px dashed #cfd8ea; background: #ffffff; border-radius: 12px; padding: 10px 12px;
+  box-shadow: 0 8px 18px rgba(46,91,255,.04);
+}
+.footerline {
+  position:absolute; left:72px; right:72px; bottom: 54px;
+  height: 1px; background: linear-gradient(90deg, transparent, #e6ebf5, transparent);
+}
+</style>
+</head>
+<body>
+  <div class="frame" id="frame">
+    
+<section class="slide active">
+  <div class="brandbar"><div class="dot"></div><div class="title mono">AI音声対話モジュール 試作計画</div></div>
+  <div class="ribbon"></div>
+  <h1>AI音声対話モジュール 試作計画</h1>
+  <h3>BLE通信 × 音声入出力 × 小型筐体</h3>
+  <div class="kv"><div>
+    <p style="text-align:center; font-size:22px; margin:0">hamas｜営業：廣瀬　技術責任：浜崎</p>
+    <p style="text-align:center; font-size:18px; color:#5b677a; margin:6px 0 0">面談日：2025-08-29</p>
+  </div></div>
+  <div class="footerline"></div>
+  <div class="meta">1 / 12</div>
+</section>
+
+<section class="slide">
+  <div class="brandbar"><div class="dot"></div><div class="title mono">目的とゴール</div></div>
+  <h2>目的とゴール</h2>
+  <p>本資料は、AI音声対話モジュールの「試作第1号（MVP）」に向けた要件・構成・進行の共通理解を整えるためのものです。</p>
+  <div class="grid2" style="margin-top:10px">
+    <div class="card">
+      <h3>ゴール</h3>
+      <ul>
+        <li>BLE接続＋音声入出力の安定動作</li>
+        <li>サイズ・重量・稼働時間の成立条件を確認</li>
+        <li>量産前提の設計方針（拡張ポイント）を明確化</li>
+      </ul>
+    </div>
+    <div class="card">
+      <h3>成果物（MVP）</h3>
+      <ul>
+        <li>試作機（1台）＋回路図／BOMラフ</li>
+        <li>BLE GATT設計（テキスト送受信用）</li>
+        <li>簡易動作ツール（疎通検証用）</li>
+      </ul>
+    </div>
+  </div>
+  <div class="footerline"></div>
+  <div class="meta">2 / 12</div>
+</section>
+
+<section class="slide">
+  <div class="brandbar"><div class="dot"></div><div class="title mono">主要要件（公募要約）</div></div>
+  <h2>主要要件（公募要約）</h2>
+  <ul>
+    <li><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="#2e5bff" stroke-width="2"><path d="M7 7l10 10-5 5V2l5 5L7 17"/></svg> BLE通信（スマホとペアリング／テキスト送受信）</li>
+    <li><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="#2e5bff" stroke-width="2"><rect x="9" y="2" width="6" height="11" rx="3"/><path d="M5 10v1a7 7 0 0 0 14 0v-1M12 19v3M8 22h8"/></svg> MEMSマイク入力</li>
+    <li><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="#2e5bff" stroke-width="2"><path d="M4 9v6h4l5 4V5L8 9H4"/><path d="M16 9a5 5 0 0 1 0 6"/></svg> 小型スピーカー出力（0.5–1Wクラス）</li>
+    <li><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="#2e5bff" stroke-width="2"><rect x="6" y="6" width="12" height="12" rx="2"/><path d="M9 1v4M15 1v4M9 19v4M15 19v4M1 9h4M1 15h4M19 9h4M19 15h4"/></svg> 基板サイズ：50×40mm以内／厚さ20mm以下</li>
+    <li><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="#2e5bff" stroke-width="2"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 3"/></svg> 連続稼働：3–6h 目安</li>
+    <li>簡易3Dプリント筐体（脱着構造）</li>
+  </ul>
+  <p class="small">※ AI処理はアプリ側で担当（モジュール側は非対応）</p>
+  <div class="footerline"></div>
+  <div class="meta">3 / 12</div>
+</section>
+
+<section class="slide">
+  <div class="brandbar"><div class="dot"></div><div class="title mono">追加要件（先方仕様）</div></div>
+  <h2>追加要件（先方仕様）</h2>
+  <ul>
+    <li>サイズ：70×40×15mm ／ 重量：≤60g</li>
+    <li>動作時間：連続7時間以上</li>
+    <li><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="#2e5bff" stroke-width="2"><path d="M8 8a4 4 0 1 1 8 0v5a4 4 0 0 1-8 0V8z"/><path d="M12 17v5"/></svg> LED表示（電源／通信）</li>
+    <li><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="#2e5bff" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M12 2v4M12 18v4M2 12h4M18 12h4"/></svg> GPS位置情報</li>
+    <li><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="#2e5bff" stroke-width="2"><path d="M12 2a4 4 0 1 1-4 4 4 4 0 0 1 4-4"/><path d="M12 22l-4-7 4-5 4 3 1 9z"/></svg> タッチセンサー</li>
+    <li>OTAアップデート、起動時オフラインチェック</li>
+    <li>音声→テキスト→AI→音声合成（TTS）</li>
+    <li>量産計画：初回500台 → 年間3,000台</li>
+  </ul>
+  <div class="footerline"></div>
+  <div class="meta">4 / 12</div>
+</section>
+
+<section class="slide">
+  <div class="brandbar"><div class="dot"></div><div class="title mono">差分と優先度</div></div>
+  <h2>差分と優先度（MUST / WANT / LATER）</h2>
+  <table class="table">
+    <thead><tr><th>項目</th><th>公募要件</th><th>追加要件</th><th>優先度</th></tr></thead>
+    <tbody>
+      <tr><td>サイズ/重量</td><td>50×40×≤20mm</td><td>70×40×15mm／≤60g</td><td>MUST（確定必要）</td></tr>
+      <tr><td>稼働時間</td><td>3–6h</td><td>7h以上</td><td>MUST（容量選択で調整）</td></tr>
+      <tr><td>表示/センサー</td><td>—</td><td>LED/GPS/タッチ</td><td>WANT（段階導入）</td></tr>
+      <tr><td>OTA/監視</td><td>—</td><td>OTA/オフライン判定</td><td>WANT</td></tr>
+      <tr><td>AI連携</td><td>アプリ側</td><td>Whisper/TTS連携</td><td>MUST（IF定義）</td></tr>
+    </tbody>
+  </table>
+  <div class="footerline"></div>
+  <div class="meta">5 / 12</div>
+</section>
+
+<section class="slide">
+  <div class="brandbar"><div class="dot"></div><div class="title mono">MVP構成（ハード）</div></div>
+  <h2>MVP構成（ハード）</h2>
+  <div class="grid2">
+    <div class="card">
+      <h3>主要部品</h3>
+      <ul>
+        <li>MCU：ESP32-S3（BLE＋低消費電力）</li>
+        <li>音声：I2S MEMSマイク</li>
+        <li>アンプ：1W級クラスD＋小型SP</li>
+        <li>電源：LiPo 1200–2000mAh＋充電IC（USB-C）</li>
+      </ul>
+    </div>
+    <div class="card">
+      <h3>筐体</h3>
+      <ul>
+        <li>3Dプリント（スナップ式 or ビス固定）</li>
+        <li>放熱と音量のバランス設計</li>
+        <li>LED/GPS/タッチ用の実装余白を確保</li>
+      </ul>
+    </div>
+  </div>
+  <div class="footerline"></div>
+  <div class="meta">6 / 12</div>
+</section>
+
+<section class="slide">
+  <div class="brandbar"><div class="dot"></div><div class="title mono">MVP構成（ファーム/IF）</div></div>
+  <h2>MVP構成（ファーム / インタフェース）</h2>
+  <ul>
+    <li>BLE GATT：テキスト送受信用サービス／再接続戦略</li>
+    <li>省電力：スリープ制御／広告間隔最適化</li>
+    <li>テスト用ツール：疎通確認（Web/スクリプト）</li>
+    <li>将来拡張：LED/GPS/タッチ/OTAのフック点を用意</li>
+  </ul>
+  <div class="footerline"></div>
+  <div class="meta">7 / 12</div>
+</section>
+
+<section class="slide">
+  <div class="brandbar"><div class="dot"></div><div class="title mono">アーキテクチャ（概念図）</div></div>
+  <h2>アーキテクチャ（概念図）</h2>
+  <div class="arch">
+    <div class="box">
+      <h3>スマホアプリ</h3>
+      <ul>
+        <li>BLEペアリング</li>
+        <li>テキスト送受信</li>
+        <li>音声→テキスト（Whisper等）</li>
+        <li>AI応答→TTS</li>
+      </ul>
+    </div>
+    <div class="arrow"><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="#2e5bff" stroke-width="2"><path d="M5 12h14M13 5l7 7-7 7"/></svg></div>
+    <div class="box">
+      <h3>モジュール（MVP）</h3>
+      <ul>
+        <li>ESP32-S3</li>
+        <li>I2S MEMS Mic / 1W Amp</li>
+        <li>LiPo / USB-C 充電</li>
+        <li>拡張：LED / GPS / タッチ / OTA</li>
+      </ul>
+    </div>
+  </div>
+  <p class="small" style="margin-top:12px">※ AI対話処理はアプリ側。MVPは堅牢な入出力と通信の土台を提供。</p>
+  <div class="footerline"></div>
+  <div class="meta">8 / 12</div>
+</section>
+
+<section class="slide">
+  <div class="brandbar"><div class="dot"></div><div class="title mono">リスクと手当</div></div>
+  <h2>技術的チャレンジと手当</h2>
+  <div class="grid2">
+    <div class="card">
+      <h3>主要リスク</h3>
+      <ul>
+        <li>7h稼働とサイズ/重量のトレードオフ</li>
+        <li>1W駆動時の放熱・音量確保</li>
+        <li>BLE安定性（周辺ノイズ・再接続）</li>
+      </ul>
+    </div>
+    <div class="card">
+      <h3>手当方針</h3>
+      <ul>
+        <li>1200/1500/2000mAhの容量選択肢</li>
+        <li>高効率アンプ／通気設計／消費電流監視</li>
+        <li>広告間隔/再接続の最適化とリカバリ</li>
+      </ul>
+    </div>
+  </div>
+  <div class="footerline"></div>
+  <div class="meta">9 / 12</div>
+</section>
+
+<section class="slide">
+  <div class="brandbar"><div class="dot"></div><div class="title mono">スケジュール案</div></div>
+  <h2>スケジュール（初期案）</h2>
+  <div class="timeline">
+    <div class="milestone"><strong>W0–1</strong><br>要件確定／回路&部品ラフ／筐体案</div>
+    <div class="milestone"><strong>W2–3</strong><br>実装／ファーム作成／動作確認</div>
+    <div class="milestone"><strong>W4</strong><br>試作第1号納品／フィードバック</div>
+    <div class="milestone"><strong>W5–</strong><br>最終試作調整 → 量産計画検討</div>
+  </div>
+  <p class="small">※ 部材調達状況により前後の可能性あり</p>
+  <div class="footerline"></div>
+  <div class="meta">10 / 12</div>
+</section>
+
+<section class="slide">
+  <div class="brandbar"><div class="dot"></div><div class="title mono">概算費用</div></div>
+  <h2>概算費用（目安）</h2>
+  <table class="table">
+    <thead><tr><th>内容</th><th class="right">概算</th></tr></thead>
+    <tbody>
+      <tr><td>試作1台（設計〜動作検証）※部品費別</td><td class="right">¥80,000–¥120,000</td></tr>
+      <tr><td>追加試作（同仕様・調整込み）</td><td class="right">¥60,000–¥90,000</td></tr>
+      <tr><td>量産フェーズ</td><td class="right">BOM/歩留まりに準拠（別途）</td></tr>
+    </tbody>
+  </table>
+  <div class="footerline"></div>
+  <div class="meta">11 / 12</div>
+</section>
+
+<section class="slide">
+  <div class="brandbar"><div class="dot"></div><div class="title mono">体制 / 次アクション</div></div>
+  <h2>体制 / 次アクション</h2>
+  <div class="grid2" style="align-items:start">
+    <div class="card">
+      <h3>体制</h3>
+      <ul>
+        <li><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="#2e5bff" stroke-width="2"><circle cx="8" cy="8" r="3"/><circle cx="16" cy="8" r="3"/><path d="M4 22v-2a4 4 0 0 1 4-4h0a4 4 0 0 1 4 4v2M12 22v-2a4 4 0 0 1 4-4h0a4 4 0 0 1 4 4v2"/></svg> 開発チーム：hamas｜営業：廣瀬　技術責任：浜崎</li>
+        <li>法人化準備中（2025年内設立予定）</li>
+        <li>ESP32／Raspberry Pi 試作経験に基づく提案</li>
+      </ul>
+    </div>
+    <div class="card">
+      <h3>次アクション</h3>
+      <ul>
+        <li>優先MUSTの確定（サイズ/重量/稼働時間）</li>
+        <li>拡張（LED/GPS/タッチ/OTA）の段階導入方針</li>
+        <li>AI連携IF（BLE/GATT項目）合意</li>
+        <li>仕様確定 → 設計着手 → 第1号試作</li>
+      </ul>
+    </div>
+  </div>
+  <div class="footerline"></div>
+  <div class="meta">12 / 12</div>
+</section>
+
+  </div>
+  <div class="nav">
+    <button id="prev">戻る</button>
+    <div class="curr"><span id="curr">1</span> / 12</div>
+    <button id="next">次へ</button>
+  </div>
+
+<script>
+  const slides = Array.from(document.querySelectorAll('.slide'));
+  let idx = 0;
+  function show(i) {
+    slides.forEach(s => s.classList.remove('active'));
+    slides[i].classList.add('active');
+    document.getElementById('curr').textContent = i+1;
+    history.replaceState(null, '', '#'+(i+1));
+  }
+  function fromHash() {
+    const n = parseInt(location.hash.slice(1), 10);
+    if (!isNaN(n) && n >= 1 && n <= slides.length) idx = n-1;
+    show(idx);
+  }
+  document.getElementById('next').onclick = () => { idx = Math.min(slides.length-1, idx+1); show(idx); };
+  document.getElementById('prev').onclick = () => { idx = Math.max(0, idx-1); show(idx); };
+  document.addEventListener('keydown', (e) => {
+    if (e.key === 'ArrowRight' || e.key.toLowerCase() === 'n') { idx = Math.min(slides.length-1, idx+1); show(idx); }
+    if (e.key === 'ArrowLeft'  || e.key.toLowerCase() === 'p') { idx = Math.max(0, idx-1); show(idx); }
+  });
+  window.addEventListener('hashchange', fromHash);
+  fromHash();
+</script>
+</body>
+</html>
